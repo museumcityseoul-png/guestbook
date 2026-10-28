@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>우리소리 방명록 · 디지털 월</title>
+<link rel="preload" href="fonts/SeoulHangangEB.woff" as="font" type="font/woff" crossorigin />
+<link rel="preload" href="fonts/SeoulHangangM.woff" as="font" type="font/woff" crossorigin />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  /* 서울한강체 (fonts 폴더) */
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangL.woff') format('woff'); font-weight:300; font-display:swap}
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangM.woff') format('woff'); font-weight:500; font-display:swap}
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangB.woff') format('woff'); font-weight:700; font-display:swap}
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangEB.woff') format('woff'); font-weight:800; font-display:swap}
+
+  :root{
+    --accent:#c0392b;   /* 포인트 색 (config.js 의 WALL_ACCENT 로 변경 가능) */
+    --night:#0f1622; --hanji:#f3ead6; --ink:#2a2420; --ink-soft:#6b5d4f;
+    --line:rgba(80,60,40,.18);
+    --cheong:#1f5f8b; --jeok:#b23a2e; --hwang:#d9a62e; --nok:#3c7a5a; --baek:#f6f0e2;
+    --gold:#c9a45c;
+    --paper-tex:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .34 0 0 0 0 .22 0 0 0 .10 0'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .18' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .30 0 0 0 .16 -.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3C/svg%3E");
+}
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{width:100%; height:100%; overflow:hidden; background:#000}
+  body{font-family:'SeoulHangang','Noto Sans KR',sans-serif; font-weight:500; color:var(--baek); -webkit-font-smoothing:antialiased}
+  body.hide-cursor, body.hide-cursor *{cursor:none !important}
+
+  /* 1920x1080 기준 좌표계를 화면 크기에 맞춰 스케일 (16:9, 4K 대응) */
+  #stage{
+    --s:1;
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:1920px; height:1080px; overflow:hidden; background:#0b1019;
+  }
+  #bg{position:absolute; inset:0; width:100%; height:100%; display:block}
+  #stage::after{
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:20000;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+
+  /* 이중 테두리 + 창살 문양 모서리 */
+  .frame{
+    position:absolute; inset:calc(16px * var(--s)); z-index:6; pointer-events:none;
+    border:1px solid rgba(201,164,92,.30);
+  }
+  .frame::after{content:''; position:absolute; inset:calc(6px * var(--s)); border:1px solid rgba(201,164,92,.14)}
+  .frame .c{
+    position:absolute; width:calc(96px * var(--s)); height:calc(96px * var(--s));
+    background:
+      repeating-linear-gradient(0deg, transparent 0 calc(15px * var(--s)), rgba(201,164,92,.5) calc(15px * var(--s)) calc(16px * var(--s))),
+      repeating-linear-gradient(90deg, transparent 0 calc(15px * var(--s)), rgba(201,164,92,.5) calc(15px * var(--s)) calc(16px * var(--s)));
+  }
+  .frame .tl{left:0; top:0; -webkit-mask:linear-gradient(135deg,#000 50%,transparent 50%); mask:linear-gradient(135deg,#000 50%,transparent 50%)}
+  .frame .tr{right:0; top:0; -webkit-mask:linear-gradient(225deg,#000 50%,transparent 50%); mask:linear-gradient(225deg,#000 50%,transparent 50%)}
+  .frame .bl{left:0; bottom:0; -webkit-mask:linear-gradient(45deg,#000 50%,transparent 50%); mask:linear-gradient(45deg,#000 50%,transparent 50%)}
+  .frame .br{right:0; bottom:0; -webkit-mask:linear-gradient(315deg,#000 50%,transparent 50%); mask:linear-gradient(315deg,#000 50%,transparent 50%)}
+
+  .heading{
+    position:absolute; left:0; right:0; top:calc(38px * var(--s)); text-align:center; z-index:5; pointer-events:none;
+  }
+  .heading h1{
+    font-weight:800;
+    font-size:calc(50px * var(--s)); letter-spacing:.16em; text-indent:.16em; color:#f4ead6;
+    text-shadow:0 0 calc(30px * var(--s)) rgba(216,183,122,.35);
+  }
+  .heading .bar{
+    width:calc(56px * var(--s)); height:calc(4px * var(--s)); margin:calc(14px * var(--s)) auto 0;
+    background:var(--accent); border-radius:calc(2px * var(--s));
+  }
+  .heading p{
+    margin-top:calc(14px * var(--s)); font-size:calc(20px * var(--s)); font-weight:300; letter-spacing:.14em;
+    color:rgba(232,210,160,.75);
+  }
+
+  #cards{position:absolute; inset:0; z-index:10}
+
+  /* 한지 카드 */
+  .card{
+    position:absolute; left:0; top:0;
+    width:calc(196px * var(--s));
+    padding:calc(15px * var(--s)) calc(12px * var(--s)) calc(10px * var(--s));
+    border-radius:calc(4px * var(--s));
+    background-color:var(--hanji); background-image:var(--paper-tex);
+    color:var(--ink);
+    border:1px solid rgba(120,90,50,.3);
+    box-shadow:0 calc(12px * var(--s)) calc(34px * var(--s)) rgba(0,0,0,.55);
+    transform-origin:50% 50%;
+    will-change:transform, opacity;
+    opacity:0;
+    transition:filter .9s ease, box-shadow 1.4s ease;
+  }
+  .card::before{
+    content:''; position:absolute; left:0; right:0; top:0; height:calc(5px * var(--s));
+    background:var(--accent); border-radius:calc(4px * var(--s)) calc(4px * var(--s)) 0 0;
+  }
+  .card.fresh{
+    box-shadow:0 0 0 calc(2px * var(--s)) var(--accent), 0 0 calc(80px * var(--s)) rgba(232,190,110,.45),
+               0 calc(18px * var(--s)) calc(50px * var(--s)) rgba(0,0,0,.6);
+  }
+  #stage.spotlight .card:not(.focus){filter:brightness(.42) saturate(.7)}
+
+  .card-img{
+    width:100%; aspect-ratio:16/9; border-radius:calc(2px * var(--s)); overflow:hidden; background:var(--hanji);
+    box-shadow:inset 0 0 0 1px rgba(80,60,40,.2);
+  }
+  .card-img img{width:100%; height:100%; object-fit:contain; display:block; mix-blend-mode:multiply}
+  .card-msg{
+    margin-top:calc(8px * var(--s));
+    font-size:calc(14.5px * var(--s)); line-height:1.55; font-weight:500;
+    word-break:keep-all; overflow-wrap:anywhere; white-space:pre-line;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .card:not(.has-img) .card-msg{
+    margin-top:calc(2px * var(--s));
+    font-size:calc(17px * var(--s)); -webkit-line-clamp:5;
+  }
+  .card-meta{
+    display:flex; justify-content:space-between; align-items:center; gap:calc(8px * var(--s));
+    margin-top:calc(9px * var(--s)); font-size:calc(11px * var(--s));
+  }
+  /* 닉네임: 푸른 낙관(인장) 형태 */
+  .card-meta .nick{
+    font-weight:700; color:#eef4fa; background:var(--cheong);
+    padding:calc(2px * var(--s)) calc(7px * var(--s)); border-radius:calc(3px * var(--s));
+    box-shadow:inset 0 0 0 calc(2px * var(--s)) rgba(255,255,255,.18);
+    max-width:66%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:.02em;
+  }
+  .card-meta .time{font-weight:300; color:rgba(80,62,44,.7); flex:none; font-variant-numeric:tabular-nums}
+
+  #empty{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:4;
+    font-weight:500; font-size:calc(30px * var(--s)); letter-spacing:.2em;
+    color:rgba(244,234,214,.6); transition:opacity 1.2s; pointer-events:none;
+    animation:breathe 5s ease-in-out infinite;
+  }
+  #empty.hide{opacity:0 !important; animation:none}
+  @keyframes breathe{0%,100%{opacity:.35}50%{opacity:.85}}
+
+  #status{
+    position:absolute; left:calc(44px * var(--s)); top:calc(36px * var(--s)); z-index:20001;
+    display:flex; align-items:center; gap:calc(8px * var(--s));
+    font-size:calc(13px * var(--s)); color:rgba(255,255,255,.35); letter-spacing:.05em;
+  }
+  #status i{width:calc(8px * var(--s)); height:calc(8px * var(--s)); border-radius:50%; background:#c9a54a; display:block}
+  #status.ok i{background:#4fbf7f; box-shadow:0 0 calc(8px * var(--s)) #4fbf7f}
+  #status.ok span{opacity:0; transition:opacity 2s}
+  #status.err i{background:#e06a5f}
+  #status.err span{color:#ffb4ab}
+
+  /* 박물관 로고 (배경, 우측 하단) */
+  #logo{
+    position:absolute; right:calc(52px * var(--s)); bottom:calc(46px * var(--s)); z-index:7;
+    width:calc(250px * var(--s)); height:auto; opacity:.82; pointer-events:none;
+    -webkit-user-drag:none; user-select:none;
+  }
+
+  /* 정렬 버튼 (좌측 하단) */
+  #sortBtn{
+    position:absolute; left:calc(44px * var(--s)); bottom:calc(36px * var(--s)); z-index:20001;
+    display:flex; align-items:center; gap:calc(8px * var(--s)); overflow:hidden;
+    height:calc(46px * var(--s)); padding:0 calc(20px * var(--s));
+    border:1px solid var(--accent); border-left:calc(4px * var(--s)) solid var(--accent); border-radius:calc(4px * var(--s));
+    background:rgba(15,22,34,.78); color:#f2e8d2;
+    font-family:inherit; font-weight:500; font-size:calc(17px * var(--s)); letter-spacing:.1em;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  #sortBtn svg{width:calc(18px * var(--s)); height:calc(18px * var(--s)); flex:none}
+  #sortBtn span{position:relative; z-index:1}
+  #sortBtn svg{position:relative; z-index:1}
+  #sortBtn i{
+    position:absolute; left:0; top:0; bottom:0; width:0; background:var(--accent); opacity:.55;
+  }
+  #sortBtn.running{color:#fff}
+
+  #fsBtn{
+    position:fixed; right:20px; bottom:20px; z-index:30000;
+    padding:12px 18px; border-radius:4px; border:1px solid rgba(201,164,92,.4);
+    background:rgba(15,22,34,.9); color:#f2efe8; font:inherit; font-size:14px; cursor:pointer;
+    transition:opacity .4s;
+  }
+  #fsBtn.hide{opacity:0; pointer-events:none}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg"></canvas>
+  <div class="frame"><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i></div>
+  <div class="heading">
+    <h1 id="title">우리소리 방명록</h1>
+    <div class="bar"></div>
+    <p id="subtitle"></p>
+  </div>
+  <div id="empty">마음을 남겨주세요</div>
+  <div id="cards"></div>
+  <img id="logo" src="logo_wall.png" alt="서울우리소리박물관" />
+  <div id="status"><i></i><span>연결 중…</span></div>
+  <button id="sortBtn" type="button" aria-label="정렬"><i></i>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <span id="sortLabel">정렬</span>
+  </button>
+</div>
+<button id="fsBtn" type="button">전체화면 (F)</button>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ================= 설정 ================= */
+  const CFG = window.GUESTBOOK_CONFIG || {};
+  const TABLE = CFG.TABLE || 'guestbook';
+  const MAX_CARDS = Number(CFG.WALL_MAX_CARDS) || 40;   // 화면에 동시에 띄우는 최대 개수 (초과분은 화면에서만 숨김, DB 데이터는 유지)
+  const COLUMNS = 'id,created_at,nickname,message,image_data';
+
+  const W = 1920, H = 1080;                                   // 기준 좌표계
+  const AREA = { left: 40, top: 150, right: W - 40, bottom: H - 40 }; // 카드 부유 영역
+  const T_ENTER = 900;      // 중앙 등장 시간(ms)
+  const T_HOLD = 3200;      // 중앙 체류 종료 시점(ms, 등장 시작 기준)
+  const T_TRAVEL = 2000;    // 중앙 → 자리 이동 시간(ms)
+  const T_APPEAR = 1400;    // 초기 로드 카드 페이드인 시간(ms)
+  const T_EXIT = 1600;      // 페이드아웃 시간(ms)
+  const HOLD_SCALE = 2.3;   // 중앙 등장 시 확대 배율
+  const T_SORT_IN = 1200;   // 정렬 위치로 이동하는 시간(ms)
+  const T_SORT_HOLD = 5000; // 정렬 상태 유지 시간(ms)
+  const SORT_AREA = { left: 60, top: 165, right: W - 60, bottom: H - 92 }; // 정렬 영역
+  const SPEED_MIN = 6, SPEED_MAX = 24; // 부유 속도(px/s, 기준 좌표)
+
+  const configured = CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY &&
+    !CFG.SUPABASE_URL.includes('YOUR-') && !CFG.SUPABASE_ANON_KEY.includes('YOUR-');
+
+  /* ================= DOM ================= */
+  const stage = document.getElementById('stage');
+  const cardsEl = document.getElementById('cards');
+  const emptyEl = document.getElementById('empty');
+  const statusEl = document.getElementById('status');
+  const statusText = statusEl.querySelector('span');
+  const fsBtn = document.getElementById('fsBtn');
+  const sortBtn = document.getElementById('sortBtn');
+  const sortBar = sortBtn.querySelector('i');
+  const sortLabel = document.getElementById('sortLabel');
+  if (CFG.WALL_ACCENT) document.documentElement.style.setProperty('--accent', CFG.WALL_ACCENT);
+  document.getElementById('title').textContent = CFG.WALL_TITLE || '우리소리 방명록';
+  document.getElementById('subtitle').textContent = CFG.WALL_SUBTITLE || '개관 7주년 축하 메시지를 남겨주세요.';
+
+  /* ================= 유틸 ================= */
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+  const easeInOutCubic = (t) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const easeOutBack = (t) => { const c1 = 1.2, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  function setStatus(kind, text) {
+    statusEl.className = kind;
+    statusText.textContent = text;
+  }
+
+  // yyyy-mm-dd (전자칠판 기기 시간대 기준)
+  function formatDate(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const p2 = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  }
+
+  /* ================= 스테이지 스케일 ================= */
+  let S = 1;
+  function layout() {
+    S = Math.min(window.innerWidth / W, window.innerHeight / H);
+    stage.style.width = (W * S) + 'px';
+    stage.style.height = (H * S) + 'px';
+    stage.style.setProperty('--s', S);
+    resizeBg();
+    requestAnimationFrame(() => cards.forEach(measure));
+  }
+  window.addEventListener('resize', layout);
+
+  /* ================= 배경 (먹빛 하늘 + 구름 문양 + 수묵 산 + 불티) ================= */
+  const bg = document.getElementById('bg');
+  const bctx = bg.getContext('2d');
+  const BG_RES = 0.5; // 성능을 위해 절반 해상도로 그린 뒤 확대
+  const blobs = [
+    { x: .20, y: .25, r: .60, c: '40,62,110',  a: .32, sx: .00006, sy: .00005, ph: 0 }, // 쪽빛
+    { x: .80, y: .62, r: .60, c: '96,46,82',   a: .20, sx: .00005, sy: .00007, ph: 2 }, // 자주
+    { x: .55, y: .14, r: .45, c: '200,150,80', a: .10, sx: .00008, sy: .00004, ph: 4 }, // 금빛
+    { x: .32, y: .88, r: .50, c: '30,90,90',   a: .14, sx: .00006, sy: .00006, ph: 1 }  // 청록
+  ];
+  const particles = Array.from({ length: 70 }, () => ({
+    x: Math.random(), y: Math.random(), r: rand(.7, 2.0), sp: rand(.004, .014),
+    sway: rand(.002, .006), tw: rand(.0008, .002), ph: rand(0, Math.PI * 2)
+  }));
+
+  // 전통 구름 문양(운문) 스프라이트: 둥근 구름 몸체 + 소용돌이 + 꼬리
+  function spiral(g, cx, cy, r, turns, dir, start = 0) {
+    g.beginPath();
+    const steps = 90;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = start + dir * t * turns * Math.PI * 2;
+      const rr = r * (1 - t * 0.85);
+      const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  }
+  function buildCloudSprite() {
+    const c = document.createElement('canvas');
+    c.width = 680; c.height = 300;
+    const g = c.getContext('2d');
+    const col = 'rgba(239,228,204,1)';
+    const circles = [[140,190,62],[230,140,84],[340,118,78],[445,158,64],[300,200,70],[190,215,48],[410,212,50]];
+    g.lineWidth = 7; g.strokeStyle = col; g.lineCap = 'round';
+    circles.forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke(); });
+    g.globalCompositeOperation = 'destination-out';
+    g.beginPath();
+    circles.forEach(([x, y, r]) => { g.moveTo(x + r - 3.5, y); g.arc(x, y, r - 3.5, 0, Math.PI * 2); });
+    g.fill();
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = 'rgba(239,228,204,.26)';
+    g.beginPath();
+    circles.forEach(([x, y, r]) => { g.moveTo(x + r - 3.5, y); g.arc(x, y, r - 3.5, 0, Math.PI * 2); });
+    g.fill();
+    g.lineWidth = 5;
+    spiral(g, 230, 140, 54, 1.7, 1, Math.PI);
+    spiral(g, 340, 118, 50, 1.7, -1, 0);
+    spiral(g, 140, 190, 38, 1.5, 1, Math.PI);
+    spiral(g, 445, 158, 40, 1.5, -1, 0);
+    // 꼬리
+    g.lineWidth = 6;
+    g.beginPath(); g.moveTo(505, 170); g.bezierCurveTo(570, 180, 625, 225, 600, 262); g.stroke();
+    g.lineWidth = 4;
+    spiral(g, 585, 252, 18, 1.3, -1, 0);
+    return c;
+  }
+  const cloudSprite = buildCloudSprite();
+  const clouds = Array.from({ length: 6 }, (_, i) => ({
+    x: rand(-.2, 1), y: .12 + i * .09 + rand(-.03, .03), s: rand(.16, .30),
+    v: rand(.003, .008), a: rand(.05, .10), flip: Math.random() < .5
+  }));
+
+  // 수묵 산 능선 (화면 크기가 바뀔 때만 다시 생성)
+  let mountains = null;
+  function buildMountains(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    const layers = [
+      { base: .80, amp: .11, col: 'rgba(28,40,62,.85)', seed: 1.3 },
+      { base: .87, amp: .08, col: 'rgba(18,26,42,.92)', seed: 2.7 },
+      { base: .94, amp: .05, col: 'rgba(9,13,22,1)',    seed: 4.1 }
+    ];
+    for (const L of layers) {
+      const top = h * (L.base - L.amp);
+      g.beginPath();
+      g.moveTo(0, h);
+      for (let x = 0; x <= w; x += 3) {
+        const t = x / w;
+        const n = .55 * Math.sin(t * 6.2 + L.seed) + .30 * Math.sin(t * 13.7 + L.seed * 2) + .15 * Math.sin(t * 29 + L.seed * 3);
+        g.lineTo(x, h * (L.base - L.amp * (.5 + .5 * n)));
+      }
+      g.lineTo(w, h);
+      g.closePath();
+      const grad = g.createLinearGradient(0, top, 0, h);
+      grad.addColorStop(0, L.col);
+      grad.addColorStop(1, '#06080e');
+      g.fillStyle = grad;
+      g.fill();
+      // 산 사이 옅은 안개
+      const mist = g.createLinearGradient(0, h * L.base - h * .02, 0, h * L.base + h * .05);
+      mist.addColorStop(0, 'rgba(200,210,230,0)');
+      mist.addColorStop(.5, 'rgba(200,210,230,.05)');
+      mist.addColorStop(1, 'rgba(200,210,230,0)');
+      g.fillStyle = mist;
+      g.fillRect(0, h * L.base - h * .02, w, h * .07);
+    }
+    return c;
+  }
+
+  function resizeBg() {
+    bg.width = Math.max(1, Math.round(W * S * BG_RES));
+    bg.height = Math.max(1, Math.round(H * S * BG_RES));
+    mountains = buildMountains(bg.width, bg.height);
+  }
+
+  function drawBg(now, dt) {
+    const w = bg.width, h = bg.height, m = Math.max(w, h);
+    bctx.globalAlpha = 1;
+    bctx.globalCompositeOperation = 'source-over';
+    bctx.fillStyle = '#0b1019';
+    bctx.fillRect(0, 0, w, h);
+
+    bctx.globalCompositeOperation = 'lighter';
+    for (const b of blobs) {
+      const x = (b.x + Math.sin(now * b.sx + b.ph) * .12) * w;
+      const y = (b.y + Math.cos(now * b.sy + b.ph) * .10) * h;
+      const r = b.r * m;
+      const g = bctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(${b.c},${b.a})`);
+      g.addColorStop(1, `rgba(${b.c},0)`);
+      bctx.fillStyle = g;
+      bctx.fillRect(0, 0, w, h);
+    }
+
+    bctx.globalCompositeOperation = 'source-over';
+    for (const c of clouds) {
+      c.x += c.v * dt * (c.flip ? -1 : 1);
+      if (c.x > 1.15) c.x = -.35;
+      if (c.x < -.35) c.x = 1.15;
+      const cw = c.s * w, ch = cw * (cloudSprite.height / cloudSprite.width);
+      const y = c.y * h + Math.sin(now * .0002 + c.v * 1000) * h * .01;
+      bctx.globalAlpha = c.a;
+      if (c.flip) {
+        bctx.save();
+        bctx.translate(c.x * w + cw, y);
+        bctx.scale(-1, 1);
+        bctx.drawImage(cloudSprite, 0, 0, cw, ch);
+        bctx.restore();
+      } else {
+        bctx.drawImage(cloudSprite, c.x * w, y, cw, ch);
+      }
+    }
+    bctx.globalAlpha = 1;
+    if (mountains) bctx.drawImage(mountains, 0, 0);
+
+    // 등불 불티
+    bctx.globalCompositeOperation = 'lighter';
+    const pr = Math.max(.5, S * BG_RES);
+    for (const p of particles) {
+      p.y -= p.sp * dt;
+      if (p.y < -.02) { p.y = 1.02; p.x = Math.random(); }
+      const x = (p.x + Math.sin(now * .0004 + p.ph) * p.sway) * w;
+      const a = .15 + .35 * (0.5 + 0.5 * Math.sin(now * p.tw + p.ph));
+      bctx.fillStyle = `rgba(255,190,110,${(a * .25).toFixed(3)})`;
+      bctx.beginPath(); bctx.arc(x, p.y * h, p.r * pr * 3, 0, Math.PI * 2); bctx.fill();
+      bctx.fillStyle = `rgba(255,220,160,${a.toFixed(3)})`;
+      bctx.beginPath(); bctx.arc(x, p.y * h, p.r * pr, 0, Math.PI * 2); bctx.fill();
+    }
+    bctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ================= 카드 ================= */
+  const cards = [];
+  const seen = new Set();
+  const queue = [];
+  let nextSpotlightAt = 0;
+  let zCounter = 1;
+
+  function createCardEl(row) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    if (row.image_data && /^data:image\/(png|jpeg|webp);base64,/.test(row.image_data)) {
+      el.classList.add('has-img');
+      const fig = document.createElement('div');
+      fig.className = 'card-img';
+      const img = new Image();
+      img.decoding = 'async';
+      img.alt = '';
+      img.src = row.image_data;
+      fig.appendChild(img);
+      el.appendChild(fig);
+    }
+    if (row.message && row.message.trim()) {
+      const p = document.createElement('p');
+      p.className = 'card-msg';
+      p.textContent = row.message.trim();     // textContent 사용 → HTML 삽입 차단
+      el.appendChild(p);
+    }
+    const meta = document.createElement('div');
+    meta.className = 'card-meta';
+    const nick = document.createElement('span');
+    nick.className = 'nick';
+    nick.textContent = (row.nickname && row.nickname.trim()) || '익명';
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.textContent = formatDate(row.created_at);
+    meta.append(nick, time);
+    el.appendChild(meta);
+    return el;
+  }
+
+  function measure(c) {
+    c.w = c.el.offsetWidth / S || 196;
+    c.h = c.el.offsetHeight / S || 180;
+  }
+
+  const activeCards = () => cards.filter((c) => c.state !== 'exit');
+
+  function centerOf(c) {
+    const pos = (c.state === 'enter' || c.state === 'travel') ? c.to : c;
+    return { x: pos.x + c.w / 2, y: pos.y + c.h / 2 };
+  }
+
+  // 다른 카드와 최대한 떨어진 위치 선택
+  function pickSpot(c) {
+    const maxX = Math.max(AREA.left, AREA.right - c.w);
+    const maxY = Math.max(AREA.top, AREA.bottom - c.h);
+    const others = activeCards().filter((o) => o !== c);
+    let best = { x: rand(AREA.left, maxX), y: rand(AREA.top, maxY) }, bestScore = -1;
+    for (let i = 0; i < 40; i++) {
+      const x = rand(AREA.left, maxX), y = rand(AREA.top, maxY);
+      const cx = x + c.w / 2, cy = y + c.h / 2;
+      let minD = Infinity;
+      for (const o of others) {
+        const oc = centerOf(o);
+        minD = Math.min(minD, Math.hypot(cx - oc.x, cy - oc.y));
+      }
+      if (minD > bestScore) { bestScore = minD; best = { x, y }; }
+    }
+    return best;
+  }
+
+  function exitCard(c, now = performance.now()) {
+    if (c.state === 'exit') return;
+    c.sorting = false;
+    if (c.el.classList.contains('focus')) c.el.classList.remove('focus');
+    c.state = 'exit';
+    c.t2 = now;
+    c.exitFromOpacity = c.opacity;
+    c.exitFromScale = c.scale;
+    updateSpotlight();
+  }
+
+  function trimOverflow() {
+    const act = activeCards().sort((a, b) => a.order - b.order);
+    while (act.length >= MAX_CARDS) exitCard(act.shift());
+  }
+
+  function updateSpotlight() {
+    const any = cards.some((c) => c.el.classList.contains('focus'));
+    stage.classList.toggle('spotlight', any);
+  }
+
+  function updateEmpty() {
+    emptyEl.classList.toggle('hide', activeCards().length > 0 || queue.length > 0);
+  }
+
+  let orderCounter = 0;
+  function addCard(row, mode, delay = 0) {
+    trimOverflow();
+    const el = createCardEl(row);
+    cardsEl.appendChild(el);
+    const now = performance.now();
+    const ang = Math.random() * Math.PI * 2;
+    const spd = rand(10, 20);
+    const c = {
+      id: row.id, el, order: ++orderCounter,
+      x: 0, y: 0, w: 0, h: 0,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      phase: Math.random() * Math.PI * 2,
+      bobAmp: rand(6, 12), bobSpeed: rand(.0006, .0011), rotAmp: rand(.6, 1.8),
+      fw: 0, opacity: 0, scale: 1, state: mode === 'spotlight' ? 'enter' : 'appear',
+      t0: now + delay, z: ++zCounter
+    };
+    measure(c);
+    c.to = pickSpot(c);
+
+    if (mode === 'spotlight') {
+      c.from = { x: W / 2 - c.w / 2, y: H / 2 - c.h / 2 + 20 };
+      c.x = c.from.x; c.y = c.from.y;
+      el.classList.add('fresh', 'focus');
+      el.style.zIndex = 10000;
+    } else {
+      c.x = c.to.x; c.y = c.to.y;
+      c.fw = 1;
+      el.style.zIndex = c.z;
+    }
+    cards.push(c);
+    updateSpotlight();
+    updateEmpty();
+  }
+
+  function removeById(id) {
+    const c = cards.find((x) => x.id === id && x.state !== 'exit');
+    if (c) exitCard(c);
+    const qi = queue.findIndex((r) => r.id === id);
+    if (qi >= 0) queue.splice(qi, 1);
+  }
+
+  /* ================= 정렬 ================= */
+  let sort = null; // { start, end }
+
+  // 카드 수에 맞춰 가장 크게 보이는 격자(열·행)를 계산
+  function gridLayout(list) {
+    const n = list.length;
+    const aw = SORT_AREA.right - SORT_AREA.left, ah = SORT_AREA.bottom - SORT_AREA.top;
+    const mw = Math.max(...list.map((c) => c.w)), mh = Math.max(...list.map((c) => c.h));
+    let best = null;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const cw = aw / cols, ch = ah / rows;
+      const sc = Math.min(1.3, (cw * 0.92) / mw, (ch * 0.92) / mh);
+      if (!best || sc > best.sc + 1e-6) best = { cols, rows, cw, ch, sc };
+    }
+    return list.map((c, i) => {
+      const r = Math.floor(i / best.cols), col = i % best.cols;
+      const inRow = r === best.rows - 1 ? n - r * best.cols : best.cols;
+      const offset = ((best.cols - inRow) * best.cw) / 2;   // 마지막 줄 가운데 정렬
+      const cx = SORT_AREA.left + offset + col * best.cw + best.cw / 2;
+      const cy = SORT_AREA.top + r * best.ch + best.ch / 2;
+      return { x: cx - c.w / 2, y: cy - c.h / 2, scale: best.sc };
+    });
+  }
+
+  function startSort() {
+    if (sort) return;
+    const list = activeCards().sort((a, b) => a.order - b.order); // 오래된 글 → 최신 글
+    if (!list.length) return;
+    const now = performance.now();
+    list.forEach((c) => {
+      c.el.classList.remove('focus', 'fresh');
+      if (c.state === 'enter' || c.state === 'travel') { c.state = 'float'; c.el.style.zIndex = c.z; }
+      if (c.state === 'appear' && now < c.t0) c.t0 = now;
+    });
+    updateSpotlight();
+    const targets = gridLayout(list);
+    list.forEach((c, i) => {
+      c.sorting = true;
+      c.sf = { x: c.x, y: c.y, scale: c.scale, fw: c.fw, opacity: c.opacity };
+      c.st = targets[i];
+    });
+    sort = { start: now, end: now + T_SORT_IN + T_SORT_HOLD };
+    sortBtn.classList.add('running');
+    sortLabel.textContent = '정렬 중';
+    sortBar.style.transition = 'none';
+    sortBar.style.width = '0';
+    void sortBar.offsetWidth;
+    sortBar.style.transition = `width ${T_SORT_IN + T_SORT_HOLD}ms linear`;
+    sortBar.style.width = '100%';
+  }
+
+  function endSort(now) {
+    for (const c of cards) {
+      if (!c.sorting) continue;
+      c.sorting = false;
+      c.state = 'float';
+      c.fw = 0;
+      const ang = Math.random() * Math.PI * 2, spd = rand(8, 16);
+      c.vx = Math.cos(ang) * spd; c.vy = Math.sin(ang) * spd;
+    }
+    sort = null;
+    nextSpotlightAt = Math.max(nextSpotlightAt, now + 800);
+    sortBtn.classList.remove('running');
+    sortLabel.textContent = '정렬';
+    sortBar.style.transition = 'width .4s ease';
+    sortBar.style.width = '0';
+  }
+
+  sortBtn.addEventListener('click', startSort);
+
+  /* ================= 부유 물리 ================= */
+  function physics(c, dt, now) {
+    let ax = 0, ay = 0;
+    const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
+    for (const o of cards) {
+      if (o === c || o.state === 'enter' || o.state === 'travel') continue;
+      const dx = cx - (o.x + o.w / 2), dy = cy - (o.y + o.h / 2);
+      const d = Math.hypot(dx, dy) || 1;
+      const minD = (c.w + o.w) * 0.5;
+      if (d < minD) {
+        const f = (1 - d / minD) * 10;
+        ax += (dx / d) * f; ay += (dy / d) * f;
+      }
+    }
+    c.vx += ax * dt; c.vy += ay * dt;
+
+    // 느린 방향 전환(자연스러운 유영)
+    const turn = Math.sin(now * 0.00015 + c.phase) * 0.12 * dt;
+    const cs = Math.cos(turn), sn = Math.sin(turn);
+    const nvx = c.vx * cs - c.vy * sn, nvy = c.vx * sn + c.vy * cs;
+    c.vx = nvx; c.vy = nvy;
+
+    const sp = Math.hypot(c.vx, c.vy) || 1;
+    const target = clamp(sp, SPEED_MIN, SPEED_MAX);
+    c.vx *= target / sp; c.vy *= target / sp;
+
+    c.x += c.vx * dt; c.y += c.vy * dt;
+
+    if (c.x < AREA.left) { c.x = AREA.left; c.vx = Math.abs(c.vx); }
+    if (c.x + c.w > AREA.right) { c.x = Math.max(AREA.left, AREA.right - c.w); c.vx = -Math.abs(c.vx); }
+    if (c.y < AREA.top) { c.y = AREA.top; c.vy = Math.abs(c.vy); }
+    if (c.y + c.h > AREA.bottom) { c.y = Math.max(AREA.top, AREA.bottom - c.h); c.vy = -Math.abs(c.vy); }
+  }
+
+  /* ================= 메인 루프 ================= */
+  let lastFrame = performance.now();
+  function frame(now) {
+    const dt = Math.min(64, now - lastFrame) / 1000;
+    lastFrame = now;
+
+    drawBg(now, dt);
+
+    if (sort && now >= sort.end) endSort(now);
+
+    // 대기열에서 다음 신규 카드 등장 (정렬 중에는 대기)
+    if (!sort && queue.length && now >= nextSpotlightAt) {
+      addCard(queue.shift(), 'spotlight');
+      nextSpotlightAt = now + T_HOLD + 300;
+    }
+
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const c = cards[i];
+      const e = now - c.t0;
+
+      if (c.sorting) {
+        const k = easeInOutCubic(clamp((now - sort.start) / T_SORT_IN));
+        c.x = lerp(c.sf.x, c.st.x, k);
+        c.y = lerp(c.sf.y, c.st.y, k);
+        c.scale = lerp(c.sf.scale, c.st.scale, k);
+        c.fw = c.sf.fw * (1 - k);
+        c.opacity = lerp(c.sf.opacity, 1, k);
+      } else
+      switch (c.state) {
+        case 'enter': {
+          const p = clamp(e / T_ENTER);
+          c.opacity = easeOutCubic(p);
+          c.scale = lerp(0.6, HOLD_SCALE, easeOutBack(p));
+          if (e >= T_HOLD) {
+            c.state = 'travel';
+            c.t1 = now;
+            c.el.classList.remove('focus');
+            updateSpotlight();
+            c.to = pickSpot(c);  // 체류 중 다른 카드가 움직였으므로 재계산
+          }
+          break;
+        }
+        case 'travel': {
+          const p = clamp((now - c.t1) / T_TRAVEL);
+          const k = easeInOutCubic(p);
+          c.x = lerp(c.from.x, c.to.x, k);
+          c.y = lerp(c.from.y, c.to.y, k);
+          c.scale = lerp(HOLD_SCALE, 1, k);
+          c.opacity = 1;
+          if (p >= 1) {
+            c.state = 'float';
+            c.el.style.zIndex = c.z;
+            setTimeout(() => c.el.classList.remove('fresh'), 1500);
+          }
+          break;
+        }
+        case 'appear': {
+          if (e < 0) { c.opacity = 0; break; }
+          const p = clamp(e / T_APPEAR);
+          c.opacity = easeOutCubic(p);
+          c.scale = lerp(0.9, 1, easeOutCubic(p));
+          physics(c, dt, now);
+          if (p >= 1) c.state = 'float';
+          break;
+        }
+        case 'float': {
+          c.fw = clamp(c.fw + dt / 1.5);
+          c.opacity = 1;
+          c.scale += (1 - c.scale) * Math.min(1, dt * 2.5); // 정렬 후 크기 부드럽게 복귀
+          physics(c, dt, now);
+          break;
+        }
+        case 'exit': {
+          const p = clamp((now - c.t2) / T_EXIT);
+          const k = easeInOutCubic(p);
+          c.opacity = c.exitFromOpacity * (1 - k);
+          c.scale = c.exitFromScale * (1 - 0.15 * k);
+          physics(c, dt, now);
+          if (p >= 1) {
+            c.el.remove();
+            cards.splice(i, 1);
+            updateEmpty();
+            continue;
+          }
+          break;
+        }
+      }
+
+      const bob = Math.sin(now * c.bobSpeed + c.phase) * c.bobAmp * c.fw;
+      const rot = Math.cos(now * c.bobSpeed * 0.8 + c.phase) * c.rotAmp * c.fw;
+      c.el.style.opacity = c.opacity.toFixed(3);
+      c.el.style.transform =
+        `translate3d(${(c.x * S).toFixed(2)}px, ${((c.y + bob) * S).toFixed(2)}px, 0) rotate(${rot.toFixed(3)}deg) scale(${c.scale.toFixed(4)})`;
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ================= Supabase ================= */
+  const sb = (configured && window.supabase)
+    ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+    : null;
+  let channel = null;
+  let reconnectTimer = null;
+
+  async function fetchRecent() {
+    const { data, error } = await sb.from(TABLE)
+      .select(COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(MAX_CARDS);
+    if (error) throw error;
+    return (data || []).reverse(); // 오래된 것 → 최신 순
+  }
+
+  async function loadInitial() {
+    try {
+      const rows = await fetchRecent();
+      rows.forEach((r, i) => { seen.add(r.id); addCard(r, 'ambient', i * 220); });
+    } catch (err) {
+      console.error('[guestbook] initial load error:', err);
+      setStatus('err', '데이터를 불러오지 못했습니다');
+    }
+    updateEmpty();
+  }
+
+  // 재연결 시 놓친 메시지 보충
+  async function catchUp() {
+    try {
+      const rows = await fetchRecent();
+      rows.forEach((r) => { if (!seen.has(r.id)) { seen.add(r.id); queue.push(r); } });
+      updateEmpty();
+    } catch (err) { console.error('[guestbook] catch-up error:', err); }
+  }
+
+  async function handleInsert(row) {
+    if (!row || row.id == null || seen.has(row.id)) return;
+    seen.add(row.id);
+    let full = row;
+    // 실시간 페이로드는 대용량 필드가 생략될 수 있으므로 DB에서 행 전체를 다시 조회
+    try {
+      const { data, error } = await sb.from(TABLE).select(COLUMNS).eq('id', row.id).single();
+      if (!error && data) full = data;
+    } catch (_) {}
+    queue.push(full);
+    updateEmpty();
+  }
+
+  let hasConnectedOnce = false;
+  function subscribe() {
+    clearTimeout(reconnectTimer);
+    setStatus('', '실시간 연결 중…');
+    channel = sb.channel('guestbook-display')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLE }, (p) => handleInsert(p.new))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: TABLE }, (p) => p.old && removeById(p.old.id))
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setStatus('ok', '실시간 연결됨');
+          if (hasConnectedOnce) catchUp();
+          hasConnectedOnce = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setStatus('err', '실시간 연결 끊김 · 재연결 시도 중');
+          scheduleReconnect();
+        }
+      });
+  }
+
+  function scheduleReconnect() {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(async () => {
+      const old = channel;
+      channel = null;
+      if (old) { try { await sb.removeChannel(old); } catch (_) {} }
+      subscribe();
+    }, 5000);
+  }
+
+  window.addEventListener('online', () => { if (sb) catchUp(); });
+
+  /* ================= 키오스크 편의 기능 ================= */
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || (() => {}))
+        .call(document.documentElement);
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  }
+  fsBtn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    if (e.key === 's' || e.key === 'S') startSort();
+  });
+  document.addEventListener('fullscreenchange', () => fsBtn.classList.toggle('hide', !!document.fullscreenElement));
+
+  // 마우스 미사용 3초 후 커서·버튼 숨김
+  let idleTimer = null;
+  function wake() {
+    document.body.classList.remove('hide-cursor');
+    if (!document.fullscreenElement) fsBtn.classList.remove('hide');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      document.body.classList.add('hide-cursor');
+      fsBtn.classList.add('hide');
+    }, 3000);
+  }
+  ['mousemove', 'pointerdown'].forEach((ev) => document.addEventListener(ev, wake));
+  wake();
+
+  // 화면 꺼짐 방지 (지원 브라우저 + HTTPS 환경)
+  let wakeLock = null;
+  async function requestWakeLock() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
+
+  /* ================= 시작 ================= */
+  layout();
+  requestAnimationFrame(frame);
+  requestWakeLock();
+
+  if (!sb) {
+    setStatus('err', 'config.js에 Supabase URL과 키를 설정해 주세요');
+    updateEmpty();
+  } else {
+    loadInitial().then(subscribe);
+  }
+})();
+</script>
+</body>
+</html>
