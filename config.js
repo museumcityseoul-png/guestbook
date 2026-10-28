@@ -5,7 +5,7 @@
  * ========================================================= */
 window.GUESTBOOK_CONFIG = {
   // Supabase 프로젝트 URL (예: https://abcdefghijkl.supabase.co)
-  SUPABASE_URL: 'https://uazfkrsjsqovhkfdzwxn.supabase.co/rest/v1/',
+  SUPABASE_URL: 'https://uazfkrsjsqovhkfdzwxn.supabase.co',
 
   // Supabase 익명 키 (anon key 또는 publishable key)
   SUPABASE_ANON_KEY: 'sb_publishable_rKlbKmJ8GNhIb3naym6KSw_zHURFCXJ',
