@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#121110" />
+<title>우리소리 방명록 · 작성 패드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --page:#121110; --panel:#1f1c19; --border:#8a6a2c;
+    --gold:#f2c14e; --label:#d9d4cb; --muted:#9a948a;
+    --field:#1e2a3d; --field-line:#34445e; --text:#e8e6e1;
+    --paper:#fcfaf5; --orange:#d97706; --orange-2:#b45309; --btn-text:#3b2208;
+    --danger:#e06a5f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--page); color:var(--text);
+    font-family:'Noto Sans KR',system-ui,-apple-system,sans-serif;
+    -webkit-user-select:none; user-select:none;
+    touch-action:manipulation; overscroll-behavior:none;
+    display:flex; align-items:center; justify-content:center;
+    padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .card{
+    width:min(760px, 100%);
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:26px 26px 22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+    display:flex; flex-direction:column;
+  }
+  .head{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px}
+  .head h1{display:flex; align-items:center; gap:10px; font-size:26px; font-weight:700; color:var(--gold)}
+  .head h1 svg{width:26px; height:26px}
+  .close{
+    width:44px; height:44px; margin-right:-10px; border:none; background:none; cursor:pointer;
+    color:#aeb4bd; display:flex; align-items:center; justify-content:center; border-radius:8px;
+  }
+  .close svg{width:24px; height:24px}
+
+  .label{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-size:15px; font-weight:700; color:var(--label)}
+  .field{margin-bottom:18px}
+  .input{
+    width:100%; background:var(--field); border:1px solid var(--field-line); border-radius:8px;
+    color:var(--text); font:inherit; font-size:18px; padding:13px 14px; outline:none;
+    -webkit-user-select:text; user-select:text; transition:border-color .2s;
+  }
+  .input::placeholder{color:#8f99a8}
+  .input:focus{border-color:var(--gold)}
+  textarea.input{resize:none; height:96px; line-height:1.6}
+
+  .reset{
+    display:inline-flex; align-items:center; gap:4px; border:none; background:none; cursor:pointer;
+    color:var(--gold); font:inherit; font-size:14px; font-weight:500; padding:6px 2px;
+  }
+  .reset svg{width:15px; height:15px}
+
+  /* 그림 영역: 기기 높이에 맞춰 자동 조절 */
+  .pad-wrap{
+    position:relative; width:100%;
+    height:clamp(180px, calc(100dvh - 560px), 440px);
+    background:var(--paper); border:1px solid #c9a54a; border-radius:8px; overflow:hidden;
+  }
+  #pad{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:crosshair}
+
+  .colors{display:flex; align-items:center; gap:12px; margin:14px 0 20px; font-size:15px; color:var(--label)}
+  .swatch{
+    width:36px; height:36px; border-radius:50%; cursor:pointer;
+    border:2px solid #fff; outline:3px solid transparent; outline-offset:2px;
+    transition:transform .15s;
+  }
+  .swatch.active{outline-color:var(--gold); transform:scale(1.08)}
+
+  .submit{
+    height:62px; border:none; border-radius:8px; cursor:pointer;
+    background:linear-gradient(90deg,var(--orange),var(--orange-2));
+    color:var(--btn-text); font:inherit; font-size:20px; font-weight:500;
+    transition:transform .1s, opacity .2s;
+  }
+  .submit:active{transform:scale(.99)}
+  .submit:disabled{opacity:.6; cursor:default}
+
+  .config-warn{
+    display:none; margin-bottom:16px; background:rgba(224,106,95,.15); border:1px solid rgba(224,106,95,.5);
+    color:#ffd1cc; padding:10px 14px; border-radius:8px; font-size:14px;
+  }
+
+  /* 모달 */
+  .modal{
+    position:fixed; inset:0; z-index:50; padding:24px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.65); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .modal.open{opacity:1; pointer-events:auto}
+  .modal-box{
+    width:min(420px,100%); text-align:center; padding:32px 26px 22px;
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    transform:translateY(10px); transition:transform .2s;
+  }
+  .modal.open .modal-box{transform:none}
+  .modal-title{font-size:24px; font-weight:700; color:var(--gold); margin-bottom:10px}
+  .modal-text{color:var(--label); line-height:1.6; font-size:17px; white-space:pre-line; overflow-wrap:anywhere}
+  .modal-actions{display:flex; gap:10px; margin-top:22px}
+  .modal-btn{flex:1; height:50px; border:1px solid var(--field-line); border-radius:8px; background:var(--field); color:var(--text); font:inherit; font-size:17px; cursor:pointer}
+  .modal-btn.primary{background:linear-gradient(90deg,var(--orange),var(--orange-2)); border:none; color:var(--btn-text); font-weight:700}
+  .spinner{display:inline-block; width:18px; height:18px; border:3px solid rgba(59,34,8,.3); border-top-color:var(--btn-text); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-3px; margin-right:10px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="head">
+    <h1 id="title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg>
+      <span id="titleText">방명록 작성하기</span>
+    </h1>
+    <button class="close" id="closeBtn" type="button" aria-label="입력 초기화">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="config-warn" id="configWarn">config.js에 Supabase URL과 키가 설정되지 않았습니다.</div>
+
+  <div class="field">
+    <div class="label">성함 또는 닉네임</div>
+    <input class="input" id="nickname" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="익명" />
+  </div>
+
+  <div class="field">
+    <div class="label">남기실 말씀</div>
+    <textarea class="input" id="message" maxlength="200" placeholder="우리 소리 박물관에 남기고 싶은 마음을 적어주세요..."></textarea>
+  </div>
+
+  <div class="label">
+    <span>간단한 그림 그리기</span>
+    <button class="reset" id="clearBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>지우기
+    </button>
+  </div>
+  <div class="pad-wrap"><canvas id="pad"></canvas></div>
+
+  <div class="colors"><span>펜 색상:</span><span id="colors" style="display:flex; gap:12px"></span></div>
+
+  <button class="submit" id="submitBtn" type="button">미디어 월에 남기기</button>
+</main>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-text" id="modalText"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------------- 설정 / Supabase ---------------- */
+  const CFG = window.GUESTBOOK_CONFIG || {};
+  const TABLE = CFG.TABLE || 'guestbook';
+  const PAPER_COLOR = '#fcfaf5';
+  const PEN_SIZE = 6;
+  const configured = CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY &&
+    !CFG.SUPABASE_URL.includes('YOUR-') && !CFG.SUPABASE_ANON_KEY.includes('YOUR-');
+
+  document.getElementById('titleText').textContent = CFG.PAD_TITLE || '방명록 작성하기';
+  if (CFG.PAD_BUTTON) document.getElementById('submitBtn').textContent = CFG.PAD_BUTTON;
+  const SUBMIT_LABEL = document.getElementById('submitBtn').textContent;
+  if (!configured) document.getElementById('configWarn').style.display = 'block';
+
+  const sb = (configured && window.supabase)
+    ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+    : null;
+
+  /* ---------------- 비속어 필터 ---------------- */
+  // 필요에 따라 단어를 추가/삭제하세요. 공백·숫자·특수문자를 제거한 뒤 비교합니다.
+  const BAD_WORDS = [
+    '시발','씨발','씨빨','씨바','시바새','시벌','씨벌','씨부랄','ㅅㅂ','ㅆㅂ','ㅅ1ㅂ','sibal','ssibal',
+    '병신','븅신','빙신','ㅂㅅ','ㅄ',
+    '좆','존나','졸라','ㅈㄴ','좃같','좇같',
+    '개새끼','개새기','개색기','개색끼','개세끼','개쉐이','개새','새끼야',
+    '지랄','ㅈㄹ','염병','엠병',
+    '미친놈','미친년','미친새끼','미친개','미친것',
+    '닥쳐','꺼져','엿먹어','엿이나',
+    '썅','쌍년','쌍놈','씹새','씹할','씹년','씹놈','씹창',
+    '니미','니애미','니엄마','느금마','느금','니애비','애미뒤','애비뒤',
+    '등신','또라이','찐따','호로새끼','후레자식','패드립',
+    'fuck','fxck','shit','bitch','asshole','motherfucker'
+  ];
+  // 오탐 방지: 정상 단어를 먼저 제거한 뒤 검사합니다.
+  const ALLOW_WORDS = ['시발점','시발역','시발택시','새끼손가락','새끼발가락'];
+
+  const normalize = (s) => (s || '')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-z]/g, '');
+  const NORMAL_BAD = BAD_WORDS.map(normalize).filter(Boolean);
+  const NORMAL_ALLOW = ALLOW_WORDS.map(normalize);
+
+  function containsProfanity(...texts) {
+    return texts.some((t) => {
+      let n = normalize(t);
+      NORMAL_ALLOW.forEach((a) => { n = n.split(a).join(''); });
+      return NORMAL_BAD.some((w) => n.includes(w));
+    });
+  }
+
+  /* ---------------- 모달 ---------------- */
+  const modal = document.getElementById('modal');
+  let modalTimer = null;
+
+  function openModal({ title, text = '', buttons = [{ label: '확인', primary: true }], autoClose = 0 }) {
+    clearTimeout(modalTimer);
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalText').textContent = text;
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    buttons.forEach((b) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'modal-btn' + (b.primary ? ' primary' : '');
+      btn.textContent = b.label;
+      btn.addEventListener('click', () => { closeModal(); if (b.onClick) b.onClick(); });
+      actions.appendChild(btn);
+    });
+    modal.classList.add('open');
+    if (autoClose) modalTimer = setTimeout(closeModal, autoClose);
+  }
+  function closeModal() { clearTimeout(modalTimer); modal.classList.remove('open'); }
+
+  /* ---------------- 캔버스 그리기 ---------------- */
+  const canvas = document.getElementById('pad');
+  const ctx = canvas.getContext('2d');
+  const COLORS = ['#1f2937', '#dc2626', '#2563eb', '#d97706'];
+
+  let color = COLORS[0];
+  let hasDrawing = false;
+  let drawing = false;
+  let activePointer = null;
+  let last = null;
+
+  function resizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width === w && canvas.height === h) return;
+    let snapshot = null;
+    if (hasDrawing && canvas.width > 1) {
+      snapshot = document.createElement('canvas');
+      snapshot.width = canvas.width; snapshot.height = canvas.height;
+      snapshot.getContext('2d').drawImage(canvas, 0, 0);
+    }
+    canvas.width = w; canvas.height = h;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (snapshot) ctx.drawImage(snapshot, 0, 0, w, h);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  }
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (activePointer !== null) return;      // 멀티터치 시 첫 손가락만 사용
+    e.preventDefault();
+    activePointer = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    drawing = true;
+    last = getPos(e);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = PEN_SIZE;
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, PEN_SIZE / 2, 0, Math.PI * 2);
+    ctx.fill();
+    hasDrawing = true;
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drawing || e.pointerId !== activePointer) return;
+    e.preventDefault();
+    const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+    const list = events.length ? events : [e];
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    for (const ev of list) {
+      const p = getPos(ev);
+      ctx.lineTo(p.x, p.y);
+      last = p;
+    }
+    ctx.stroke();
+  });
+
+  function endStroke(e) {
+    if (e.pointerId !== activePointer) return;
+    drawing = false;
+    activePointer = null;
+    last = null;
+  }
+  canvas.addEventListener('pointerup', endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
+  canvas.addEventListener('lostpointercapture', endStroke);
+
+  function clearCanvas() {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    hasDrawing = false;
+  }
+
+  // 전송용 이미지: 최대 가로 800px, 배경색 합성, WebP(미지원 시 JPEG)
+  function exportDrawing() {
+    const MAX_W = 800;
+    const scale = Math.min(1, MAX_W / canvas.width);
+    const w = Math.round(canvas.width * scale);
+    const h = Math.round(canvas.height * scale);
+    const off = document.createElement('canvas');
+    off.width = w; off.height = h;
+    const o = off.getContext('2d');
+    o.fillStyle = PAPER_COLOR;
+    o.fillRect(0, 0, w, h);
+    o.imageSmoothingQuality = 'high';
+    o.drawImage(canvas, 0, 0, w, h);
+    let url = off.toDataURL('image/webp', 0.82);
+    if (!url.startsWith('data:image/webp')) url = off.toDataURL('image/jpeg', 0.85);
+    return url;
+  }
+
+  /* ---------------- 펜 색상 ---------------- */
+  const colorsEl = document.getElementById('colors');
+  COLORS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch' + (i === 0 ? ' active' : '');
+    b.style.background = c;
+    b.setAttribute('aria-label', '펜 색상 ' + (i + 1));
+    b.addEventListener('click', () => {
+      color = c;
+      colorsEl.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
+      b.classList.add('active');
+    });
+    colorsEl.appendChild(b);
+  });
+
+  /* ---------------- 초기화 ---------------- */
+  const nickInput = document.getElementById('nickname');
+  const msgInput = document.getElementById('message');
+
+  function resetAll() {
+    nickInput.value = '';
+    msgInput.value = '';
+    clearCanvas();
+    color = COLORS[0];
+    colorsEl.querySelectorAll('.swatch').forEach((s, i) => s.classList.toggle('active', i === 0));
+    document.activeElement && document.activeElement.blur();
+  }
+
+  document.getElementById('clearBtn').addEventListener('click', clearCanvas);
+
+  // X 버튼: 작성 중인 내용 전체 초기화
+  document.getElementById('closeBtn').addEventListener('click', () => {
+    if (!nickInput.value && !msgInput.value && !hasDrawing) return;
+    openModal({
+      title: '작성을 취소할까요?', text: '입력한 내용과 그림이 모두 지워집니다.',
+      buttons: [{ label: '계속 작성' }, { label: '지우기', primary: true, onClick: resetAll }]
+    });
+  });
+
+  /* ---------------- 오류 원인 안내 ---------------- */
+  // 전송 실패 시 원인과 원문 오류를 함께 표시 (설치 점검용)
+  function explainError(err) {
+    const code = String((err && (err.code || err.status)) || '');
+    const msg = String((err && (err.message || err.error_description || err.hint)) || err || '');
+    const m = msg.toLowerCase();
+    let cause = '네트워크 상태를 확인한 뒤 다시 시도해 주세요.';
+    if (code === 'PGRST205' || code === '42P01' || m.includes('could not find the table') || m.includes('does not exist')) {
+      cause = 'guestbook 테이블이 없습니다.\nSupabase SQL Editor에서 schema.sql을 실행해 주세요.';
+    } else if (code === 'PGRST204' || m.includes('column')) {
+      cause = '테이블의 열 이름이 맞지 않습니다.\n기존 guestbook 테이블을 삭제한 뒤 schema.sql을 다시 실행해 주세요.';
+    } else if (code === '42501' || m.includes('row-level security') || m.includes('permission denied')) {
+      cause = '쓰기 권한이 없습니다.\nschema.sql 전체를 다시 실행해 주세요.';
+    } else if (code === '401' || m.includes('api key') || m.includes('jwt') || m.includes('unauthorized')) {
+      cause = 'Supabase 키가 맞지 않습니다.\nconfig.js의 SUPABASE_ANON_KEY를 확인해 주세요.';
+    } else if (code === '23514' || m.includes('check constraint')) {
+      cause = '입력 내용이 허용 범위를 벗어났습니다.\n그림을 조금 단순하게 하거나 글을 줄여 주세요.';
+    } else if (m.includes('failed to fetch') || m.includes('load failed') || m.includes('networkerror')) {
+      cause = 'Supabase 서버에 연결하지 못했습니다.\nconfig.js의 SUPABASE_URL 주소와 인터넷 연결, Supabase 프로젝트 일시 정지 여부를 확인해 주세요.';
+    }
+    const detail = [code, msg].filter(Boolean).join(' / ').slice(0, 160);
+    return detail ? `${cause}\n\n[오류 내용] ${detail}` : cause;
+  }
+
+  /* ---------------- 제출 ---------------- */
+  const submitBtn = document.getElementById('submitBtn');
+  let sending = false;
+
+  submitBtn.addEventListener('click', async () => {
+    if (sending) return;
+    const nickname = nickInput.value.trim();
+    const message = msgInput.value.trim();
+    const blank = !hasDrawing;
+
+    if (!message && blank) {
+      openModal({ title: '내용을 입력해 주세요', text: '메시지 또는 그림 중 하나 이상을 남겨주세요.' });
+      return;
+    }
+    if (containsProfanity(nickname, message)) {
+      openModal({ title: '알림', text: '부적절한 단어가 포함되어 있습니다.' });
+      return;
+    }
+    if (!sb) {
+      openModal({ title: '설정이 필요합니다', text: 'config.js에 Supabase URL과 키를 입력해 주세요.' });
+      return;
+    }
+
+    sending = true;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span>전송 중';
+
+    try {
+      const payload = {
+        nickname: nickname || null,
+        message: message || null,
+        image_data: blank ? null : exportDrawing()
+      };
+      const { error } = await sb.from(TABLE).insert(payload);
+      if (error) throw error;
+
+      resetAll();
+      openModal({ title: '감사합니다', text: '소중한 마음이 전시장 화면에 전해졌습니다.', autoClose: 3500 });
+    } catch (err) {
+      console.error('[guestbook] insert error:', err);
+      openModal({ title: '전송 실패', text: explainError(err) });
+    } finally {
+      sending = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = SUBMIT_LABEL;
+    }
+  });
+
+  /* ---------------- 시작 ---------------- */
+  new ResizeObserver(() => resizeCanvas()).observe(canvas);
+  resizeCanvas();
+  document.addEventListener('touchmove', (e) => { if (e.target === canvas) e.preventDefault(); }, { passive: false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+})();
+</script>
+</body>
+</html>
