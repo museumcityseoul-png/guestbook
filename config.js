@@ -14,7 +14,7 @@ window.GUESTBOOK_CONFIG = {
   TABLE: 'guestbook',
 
   // ---- 디지털 월 ----
-  WALL_TITLE: '우리소리 방명록',
+  WALL_TITLE: '소리를 잇다.\n마음을 남기다.',
   WALL_SUBTITLE: '개관 7주년 축하 메시지를 남겨주세요.',
   WALL_MAX_CARDS: 40,          // 화면에 동시에 띄우는 최대 개수 (초과분은 화면에서만 숨김)
   WALL_ACCENT: '#c0392b',      // 포인트 색 (카드 상단 띠, 제목 밑줄, 정렬 버튼)
