@@ -62,7 +62,8 @@
   }
   .heading h1{
     font-weight:800;
-    font-size:calc(50px * var(--s)); letter-spacing:.16em; text-indent:.16em; color:#f4ead6;
+    font-size:calc(50px * var(--s)); letter-spacing:.16em; padding-left:.16em; color:#f4ead6;
+    white-space:pre-line; line-height:1.25;  /* config.js 문구의 \n 을 줄바꿈으로 표시 */
     text-shadow:0 0 calc(30px * var(--s)) rgba(216,183,122,.35);
   }
   .heading .bar{
@@ -70,7 +71,7 @@
     background:var(--accent); border-radius:calc(2px * var(--s));
   }
   .heading p{
-    margin-top:calc(14px * var(--s)); font-size:calc(20px * var(--s)); font-weight:300; letter-spacing:.14em;
+    margin-top:calc(14px * var(--s)); font-size:calc(20px * var(--s)); font-weight:300; letter-spacing:.14em; white-space:pre-line; line-height:1.5;
     color:rgba(232,210,160,.75);
   }
 
@@ -264,6 +265,15 @@
     return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
   }
 
+  // 제목·부제가 여러 줄이 되어도 카드가 겹치지 않도록 카드 영역 상단을 제목 아래로 맞춤
+  function fitAreaToHeading() {
+    const hd = document.querySelector('.heading');
+    if (!hd || !S) return;
+    const bottom = (hd.getBoundingClientRect().bottom - stage.getBoundingClientRect().top) / S;
+    AREA.top = Math.max(150, Math.round(bottom + 16));
+    SORT_AREA.top = Math.max(165, Math.round(bottom + 24));
+  }
+
   /* ================= 스테이지 스케일 ================= */
   let S = 1;
   function layout() {
@@ -272,7 +282,7 @@
     stage.style.height = (H * S) + 'px';
     stage.style.setProperty('--s', S);
     resizeBg();
-    requestAnimationFrame(() => cards.forEach(measure));
+    requestAnimationFrame(() => { cards.forEach(measure); fitAreaToHeading(); });
   }
   window.addEventListener('resize', layout);
 
@@ -899,6 +909,7 @@
 
   /* ================= 시작 ================= */
   layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAreaToHeading);
   requestAnimationFrame(frame);
   requestWakeLock();
 
