@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>우리소리 방명록 · 기록 보기</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --bg:#f5f3ef; --panel:#ffffff; --line:#e3ded5; --text:#24211d; --muted:#7a7268;
+    --accent:#b0322a; --blue:#1f5f8b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:var(--bg); color:var(--text); font-family:'Noto Sans KR',system-ui,-apple-system,'Malgun Gothic',sans-serif; font-size:15px}
+  header{
+    position:sticky; top:0; z-index:10; background:var(--panel); border-bottom:1px solid var(--line);
+    padding:16px 24px; display:flex; flex-wrap:wrap; align-items:center; gap:12px 20px;
+  }
+  header h1{font-size:20px; font-weight:700; margin-right:auto}
+  header h1 small{font-size:14px; font-weight:400; color:var(--muted); margin-left:8px}
+  .controls{display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+  input[type=search], input[type=date]{
+    height:38px; border:1px solid var(--line); border-radius:6px; padding:0 10px; font:inherit; background:#fff;
+  }
+  input[type=search]{width:200px}
+  label.chk{display:flex; align-items:center; gap:6px; color:var(--muted); cursor:pointer}
+  .btn{
+    height:38px; padding:0 14px; border-radius:6px; border:1px solid var(--line); background:#fff;
+    font:inherit; cursor:pointer; white-space:nowrap;
+  }
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn:disabled{opacity:.5; cursor:default}
+  #status{padding:14px 24px; color:var(--muted)}
+  #status.err{color:var(--accent)}
+  main{padding:0 24px 40px; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px}
+  .item{background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; display:flex; flex-direction:column}
+  .item .img{aspect-ratio:16/9; background:#fbf8f1; cursor:zoom-in; border-bottom:1px solid var(--line)}
+  .item .img img{width:100%; height:100%; object-fit:contain; display:block}
+  .item .noimg{aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; color:#b8b0a4; font-size:13px; background:#faf9f7; border-bottom:1px solid var(--line)}
+  .item .body{padding:12px; display:flex; flex-direction:column; gap:8px; flex:1}
+  .item .msg{line-height:1.55; white-space:pre-line; word-break:keep-all; overflow-wrap:anywhere; flex:1}
+  .item .msg.empty{color:#b8b0a4}
+  .item .meta{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px; color:var(--muted)}
+  .item .nick{background:var(--blue); color:#fff; padding:2px 8px; border-radius:4px; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .item .foot{display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#a59d92}
+  .item .dl{font-size:13px; color:var(--accent); text-decoration:none}
+  #lightbox{position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; padding:24px; cursor:zoom-out}
+  #lightbox.show{display:flex}
+  #lightbox img{max-width:100%; max-height:100%; background:#fbf8f1; border-radius:6px}
+  #more{grid-column:1/-1; justify-self:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>방명록 기록 보기<small id="count"></small></h1>
+  <div class="controls">
+    <input type="search" id="q" placeholder="메시지·닉네임 검색" />
+    <input type="date" id="from" title="시작일" />
+    <span>~</span>
+    <input type="date" id="to" title="종료일" />
+    <label class="chk"><input type="checkbox" id="onlyImg" /> 그림 있는 글만</label>
+    <button class="btn" id="csvBtn" type="button">CSV 내려받기</button>
+    <button class="btn primary" id="zipBtn" type="button">이미지 전체 ZIP</button>
+  </div>
+</header>
+<div id="status">불러오는 중…</div>
+<main id="list"></main>
+<div id="lightbox"><img alt="" /></div>
+
+<script>
+(() => {
+  'use strict';
+  const CFG = window.GUESTBOOK_CONFIG || {};
+  const TABLE = CFG.TABLE || 'guestbook';
+  const PAGE = 500;          // 한 번에 불러오는 건수
+  const SHOW_STEP = 120;     // 화면에 한 번에 그리는 건수
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status');
+  const listEl = $('list');
+  let rows = [];
+  let filtered = [];
+  let shown = 0;
+
+  const configured = CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY &&
+    !CFG.SUPABASE_URL.includes('YOUR-') && !CFG.SUPABASE_ANON_KEY.includes('YOUR-');
+  if (!configured || !window.supabase) {
+    statusEl.textContent = 'config.js에 Supabase URL과 키가 설정되지 않았습니다.';
+    statusEl.className = 'err';
+    return;
+  }
+  const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+
+  const p2 = (n) => String(n).padStart(2, '0');
+  function fmt(iso, withTime = true) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const day = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    return withTime ? `${day} ${p2(d.getHours())}:${p2(d.getMinutes())}` : day;
+  }
+  function ext(dataUrl) {
+    const m = /^data:image\/(png|jpeg|webp)/.exec(dataUrl || '');
+    return m ? (m[1] === 'jpeg' ? 'jpg' : m[1]) : 'png';
+  }
+  function fileName(r) {
+    return `방명록_${String(r.id).padStart(5, '0')}_${fmt(r.created_at, false)}.${ext(r.image_data)}`;
+  }
+  const validImg = (s) => typeof s === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(s);
+
+  /* ---------- 불러오기 (전체, 페이지 단위) ---------- */
+  async function loadAll() {
+    rows = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await sb.from(TABLE)
+        .select('id,created_at,nickname,message,image_data')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      rows.push(...data);
+      statusEl.textContent = `불러오는 중… ${rows.length}건`;
+      if (data.length < PAGE) break;
+    }
+  }
+
+  /* ---------- 필터 ---------- */
+  function applyFilter() {
+    const q = $('q').value.trim().toLowerCase();
+    const from = $('from').value, to = $('to').value;
+    const onlyImg = $('onlyImg').checked;
+    filtered = rows.filter((r) => {
+      if (onlyImg && !validImg(r.image_data)) return false;
+      const day = fmt(r.created_at, false);
+      if (from && day < from) return false;
+      if (to && day > to) return false;
+      if (q) {
+        const hay = `${r.message || ''} ${r.nickname || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    const imgCount = filtered.filter((r) => validImg(r.image_data)).length;
+    $('count').textContent = `${filtered.length}건 (그림 ${imgCount}건) / 전체 ${rows.length}건`;
+    listEl.innerHTML = '';
+    shown = 0;
+    renderMore();
+    statusEl.textContent = filtered.length ? '' : '해당하는 글이 없습니다.';
+  }
+
+  /* ---------- 그리기 ---------- */
+  function card(r) {
+    const el = document.createElement('div');
+    el.className = 'item';
+    if (validImg(r.image_data)) {
+      const box = document.createElement('div');
+      box.className = 'img';
+      const img = new Image();
+      img.loading = 'lazy';
+      img.alt = '';
+      img.src = r.image_data;
+      box.appendChild(img);
+      box.addEventListener('click', () => openLightbox(r.image_data));
+      el.appendChild(box);
+    } else {
+      const no = document.createElement('div');
+      no.className = 'noimg';
+      no.textContent = '그림 없음';
+      el.appendChild(no);
+    }
+    const body = document.createElement('div');
+    body.className = 'body';
+    const msg = document.createElement('div');
+    msg.className = 'msg' + (r.message ? '' : ' empty');
+    msg.textContent = r.message || '(메시지 없음)';
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const nick = document.createElement('span');
+    nick.className = 'nick';
+    nick.textContent = r.nickname || '익명';
+    const time = document.createElement('span');
+    time.textContent = fmt(r.created_at);
+    meta.append(nick, time);
+    const foot = document.createElement('div');
+    foot.className = 'foot';
+    const id = document.createElement('span');
+    id.textContent = `#${r.id}`;
+    foot.appendChild(id);
+    if (validImg(r.image_data)) {
+      const a = document.createElement('a');
+      a.className = 'dl';
+      a.href = r.image_data;
+      a.download = fileName(r);
+      a.textContent = '이미지 저장';
+      foot.appendChild(a);
+    }
+    body.append(msg, meta, foot);
+    el.appendChild(body);
+    return el;
+  }
+
+  function renderMore() {
+    const old = $('more');
+    if (old) old.remove();
+    const frag = document.createDocumentFragment();
+    filtered.slice(shown, shown + SHOW_STEP).forEach((r) => frag.appendChild(card(r)));
+    shown = Math.min(filtered.length, shown + SHOW_STEP);
+    listEl.appendChild(frag);
+    if (shown < filtered.length) {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.id = 'more'; b.type = 'button';
+      b.textContent = `더 보기 (${filtered.length - shown}건 남음)`;
+      b.addEventListener('click', renderMore);
+      listEl.appendChild(b);
+    }
+  }
+
+  /* ---------- 확대 보기 ---------- */
+  const lb = $('lightbox');
+  function openLightbox(src) { lb.querySelector('img').src = src; lb.classList.add('show'); }
+  lb.addEventListener('click', () => lb.classList.remove('show'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.classList.remove('show'); });
+
+  /* ---------- 내려받기 ---------- */
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  const today = () => fmt(new Date().toISOString(), false);
+
+  // CSV: 현재 필터 결과 (이미지 자체는 제외하고 이미지 파일명만 기록)
+  $('csvBtn').addEventListener('click', () => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['번호', '작성일시', '닉네임', '메시지', '그림 파일명'].map(esc).join(',')];
+    filtered.forEach((r) => {
+      lines.push([r.id, fmt(r.created_at), r.nickname || '익명', r.message || '', validImg(r.image_data) ? fileName(r) : ''].map(esc).join(','));
+    });
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }); // BOM: 엑셀 한글 깨짐 방지
+    saveBlob(blob, `방명록_${today()}.csv`);
+  });
+
+  // ZIP: 현재 필터 결과의 그림 전체
+  $('zipBtn').addEventListener('click', async () => {
+    const list = filtered.filter((r) => validImg(r.image_data));
+    if (!list.length) { alert('내려받을 그림이 없습니다.'); return; }
+    if (!window.JSZip) { alert('ZIP 기능을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); return; }
+    const btn = $('zipBtn');
+    btn.disabled = true;
+    try {
+      const zip = new JSZip();
+      list.forEach((r) => zip.file(fileName(r), r.image_data.split(',')[1], { base64: true }));
+      const blob = await zip.generateAsync({ type: 'blob' }, (m) => { btn.textContent = `압축 중… ${Math.round(m.percent)}%`; });
+      saveBlob(blob, `방명록_그림_${today()}.zip`);
+    } catch (err) {
+      console.error(err);
+      alert('ZIP 파일을 만들지 못했습니다.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '이미지 전체 ZIP';
+    }
+  });
+
+  ['q', 'from', 'to', 'onlyImg'].forEach((id) => $(id).addEventListener('input', applyFilter));
+
+  loadAll()
+    .then(applyFilter)
+    .catch((err) => {
+      console.error(err);
+      statusEl.textContent = '데이터를 불러오지 못했습니다: ' + (err.message || err);
+      statusEl.className = 'err';
+    });
+})();
+</script>
+</body>
+</html>
