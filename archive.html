@@ -9,48 +9,77 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="config.js"></script>
 <style>
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangL.woff') format('woff'); font-weight:300; font-display:swap}
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangM.woff') format('woff'); font-weight:500; font-display:swap}
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangB.woff') format('woff'); font-weight:700; font-display:swap}
+  @font-face{font-family:'SeoulHangang'; src:url('fonts/SeoulHangangEB.woff') format('woff'); font-weight:800; font-display:swap}
+
   :root{
-    --bg:#f5f3ef; --panel:#ffffff; --line:#e3ded5; --text:#24211d; --muted:#7a7268;
-    --accent:#b0322a; --blue:#1f5f8b;
+    --accent:#c0392b; --hanji:#f3ead6; --ink:#2a2420; --cheong:#1f5f8b; --gold:#c9a45c;
+    --paper-tex:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .34 0 0 0 0 .22 0 0 0 .10 0'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .18' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .30 0 0 0 .16 -.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3C/svg%3E");
   }
   *{box-sizing:border-box; margin:0; padding:0}
-  body{background:var(--bg); color:var(--text); font-family:'Noto Sans KR',system-ui,-apple-system,'Malgun Gothic',sans-serif; font-size:15px}
+  body{
+    min-height:100vh; color:#f2ecdf;
+    background:radial-gradient(1200px 700px at 20% 0%, #1c2a48 0%, transparent 60%),
+               radial-gradient(1000px 700px at 90% 100%, #2a1d33 0%, transparent 55%), #0b1019;
+    background-attachment:fixed;
+    font-family:'SeoulHangang','Noto Sans KR','Malgun Gothic',sans-serif; font-weight:500; font-size:15px;
+  }
   header{
-    position:sticky; top:0; z-index:10; background:var(--panel); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10;
+    background:rgba(11,16,25,.92); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    border-bottom:1px solid rgba(201,164,92,.25);
     padding:16px 24px; display:flex; flex-wrap:wrap; align-items:center; gap:12px 20px;
   }
-  header h1{font-size:20px; font-weight:700; margin-right:auto}
-  header h1 small{font-size:14px; font-weight:400; color:var(--muted); margin-left:8px}
-  .controls{display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+  header h1{font-size:22px; font-weight:800; margin-right:auto; letter-spacing:.04em}
+  header h1::after{content:''; display:block; width:40px; height:3px; margin-top:6px; background:var(--accent); border-radius:2px}
+  header h1 small{font-size:14px; font-weight:300; color:rgba(232,210,160,.75); margin-left:10px; letter-spacing:0}
+  .controls{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
   input[type=search], input[type=date]{
-    height:38px; border:1px solid var(--line); border-radius:6px; padding:0 10px; font:inherit; background:#fff;
+    height:38px; border:1px solid rgba(255,255,255,.18); border-radius:6px; padding:0 10px;
+    font:inherit; font-weight:500; background:rgba(255,255,255,.06); color:#f2ecdf; color-scheme:dark;
   }
-  input[type=search]{width:200px}
-  label.chk{display:flex; align-items:center; gap:6px; color:var(--muted); cursor:pointer}
+  input[type=search]{width:190px}
+  input::placeholder{color:rgba(242,236,223,.45)}
+  label.chk{display:flex; align-items:center; gap:6px; color:rgba(242,236,223,.75); cursor:pointer}
   .btn{
-    height:38px; padding:0 14px; border-radius:6px; border:1px solid var(--line); background:#fff;
-    font:inherit; cursor:pointer; white-space:nowrap;
+    height:38px; padding:0 14px; border-radius:6px; border:1px solid rgba(201,164,92,.5);
+    background:rgba(255,255,255,.04); color:#f2ecdf; font:inherit; cursor:pointer; white-space:nowrap;
   }
   .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
   .btn:disabled{opacity:.5; cursor:default}
-  #status{padding:14px 24px; color:var(--muted)}
-  #status.err{color:var(--accent)}
-  main{padding:0 24px 40px; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px}
-  .item{background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; display:flex; flex-direction:column}
-  .item .img{aspect-ratio:16/9; background:#fbf8f1; cursor:zoom-in; border-bottom:1px solid var(--line)}
-  .item .img img{width:100%; height:100%; object-fit:contain; display:block}
-  .item .noimg{aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; color:#b8b0a4; font-size:13px; background:#faf9f7; border-bottom:1px solid var(--line)}
-  .item .body{padding:12px; display:flex; flex-direction:column; gap:8px; flex:1}
-  .item .msg{line-height:1.55; white-space:pre-line; word-break:keep-all; overflow-wrap:anywhere; flex:1}
-  .item .msg.empty{color:#b8b0a4}
-  .item .meta{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px; color:var(--muted)}
-  .item .nick{background:var(--blue); color:#fff; padding:2px 8px; border-radius:4px; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .item .foot{display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#a59d92}
-  .item .dl{font-size:13px; color:var(--accent); text-decoration:none}
+  #status{padding:16px 24px; color:rgba(242,236,223,.7)}
+  #status.err{color:#ffb4ab}
+
+  main{padding:8px 24px 48px; display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:22px; align-items:start}
+
+  /* ---- 디지털 월과 같은 카드 ---- */
+  .card{
+    position:relative; color:var(--ink);
+    background-color:var(--hanji); background-image:var(--paper-tex);
+    border:1px solid rgba(120,90,50,.3); border-radius:5px;
+    padding:18px 14px 12px;
+    box-shadow:0 14px 34px rgba(0,0,0,.5);
+  }
+  .card::before{content:''; position:absolute; left:0; right:0; top:0; height:6px; background:var(--accent); border-radius:5px 5px 0 0}
+  .card-img{width:100%; aspect-ratio:16/9; border-radius:2px; overflow:hidden; background:var(--hanji); box-shadow:inset 0 0 0 1px rgba(80,60,40,.2); cursor:zoom-in}
+  .card-img img{width:100%; height:100%; object-fit:contain; display:block; mix-blend-mode:multiply}
+  .card-msg{margin-top:10px; font-size:16px; line-height:1.6; white-space:pre-line; word-break:keep-all; overflow-wrap:anywhere}
+  .card:not(.has-img) .card-msg{margin-top:2px; font-size:19px}
+  .card-meta{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px; font-size:13px}
+  .card-meta .nick{font-weight:700; color:#eef4fa; background:var(--cheong); padding:3px 9px; border-radius:3px; box-shadow:inset 0 0 0 2px rgba(255,255,255,.18); max-width:62%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .card-meta .time{font-weight:300; color:rgba(80,62,44,.75); font-variant-numeric:tabular-nums}
+  .card-tools{display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:8px; border-top:1px dashed rgba(80,62,44,.25); font-size:12px; color:rgba(80,62,44,.6)}
+  .card-tools a, .card-tools button{border:none; background:none; font:inherit; color:var(--accent); cursor:pointer; text-decoration:none; margin-left:10px}
+  .card-tools{flex-wrap:wrap; gap:4px 8px}
+  .card-tools > span:last-child{white-space:nowrap; margin-left:auto}
+  .card-tools a:first-child, .card-tools button:first-child{margin-left:0}
+
+  #more{grid-column:1/-1; justify-self:center}
   #lightbox{position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; padding:24px; cursor:zoom-out}
   #lightbox.show{display:flex}
-  #lightbox img{max-width:100%; max-height:100%; background:#fbf8f1; border-radius:6px}
-  #more{grid-column:1/-1; justify-self:center}
+  #lightbox img{max-width:100%; max-height:100%; border-radius:6px}
 </style>
 </head>
 <body>
@@ -62,8 +91,9 @@
     <span>~</span>
     <input type="date" id="to" title="종료일" />
     <label class="chk"><input type="checkbox" id="onlyImg" /> 그림 있는 글만</label>
-    <button class="btn" id="csvBtn" type="button">CSV 내려받기</button>
-    <button class="btn primary" id="zipBtn" type="button">이미지 전체 ZIP</button>
+    <button class="btn" id="csvBtn" type="button">CSV</button>
+    <button class="btn" id="zipRawBtn" type="button">그림 원본 ZIP</button>
+    <button class="btn primary" id="zipCardBtn" type="button">카드 이미지 ZIP</button>
   </div>
 </header>
 <div id="status">불러오는 중…</div>
@@ -75,15 +105,16 @@
   'use strict';
   const CFG = window.GUESTBOOK_CONFIG || {};
   const TABLE = CFG.TABLE || 'guestbook';
-  const PAGE = 500;          // 한 번에 불러오는 건수
-  const SHOW_STEP = 120;     // 화면에 한 번에 그리는 건수
+  const ACCENT = CFG.WALL_ACCENT || '#c0392b';
+  const PAGE = 500;
+  const SHOW_STEP = 120;
+  const PAPER_TEX = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .34 0 0 0 0 .22 0 0 0 .10 0'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .18' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .30 0 0 0 .16 -.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3C/svg%3E\")";
 
+  document.documentElement.style.setProperty('--accent', ACCENT);
   const $ = (id) => document.getElementById(id);
   const statusEl = $('status');
   const listEl = $('list');
-  let rows = [];
-  let filtered = [];
-  let shown = 0;
+  let rows = [], filtered = [], shown = 0;
 
   const configured = CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY &&
     !CFG.SUPABASE_URL.includes('YOUR-') && !CFG.SUPABASE_ANON_KEY.includes('YOUR-');
@@ -94,23 +125,177 @@
   }
   const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
+  /* ---------- 유틸 ---------- */
   const p2 = (n) => String(n).padStart(2, '0');
-  function fmt(iso, withTime = true) {
+  function fmtDate(iso) {
     const d = new Date(iso);
-    if (isNaN(d)) return '';
-    const day = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
-    return withTime ? `${day} ${p2(d.getHours())}:${p2(d.getMinutes())}` : day;
+    return isNaN(d) ? '' : `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
   }
+  function fmtTime(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : `${fmtDate(iso)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  }
+  const validImg = (s) => typeof s === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(s);
   function ext(dataUrl) {
     const m = /^data:image\/(png|jpeg|webp)/.exec(dataUrl || '');
     return m ? (m[1] === 'jpeg' ? 'jpg' : m[1]) : 'png';
   }
-  function fileName(r) {
-    return `방명록_${String(r.id).padStart(5, '0')}_${fmt(r.created_at, false)}.${ext(r.image_data)}`;
-  }
-  const validImg = (s) => typeof s === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(s);
+  const num = (r) => String(r.id).padStart(5, '0');
+  const rawName = (r) => `방명록그림_${num(r)}_${fmtDate(r.created_at)}.${ext(r.image_data)}`;
+  const cardName = (r) => `방명록카드_${num(r)}_${fmtDate(r.created_at)}.png`;
 
-  /* ---------- 불러오기 (전체, 페이지 단위) ---------- */
+  function loadImage(src) {
+    return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  }
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  const today = () => fmtDate(new Date().toISOString());
+
+  /* ---------- 카드 이미지 만들기 (디지털 월 카드 모양, 그림+글 포함) ---------- */
+  let fontsReady = null;
+  function ensureFonts() {
+    if (!fontsReady) {
+      fontsReady = Promise.all(['300', '500', '700'].map((w) => document.fonts.load(`${w} 20px SeoulHangang`).catch(() => null)));
+    }
+    return fontsReady;
+  }
+  let paperPattern = null;
+  async function getPaper(ctx) {
+    if (paperPattern === null) {
+      try {
+        const src = PAPER_TEX.replace(/^url\("?/, '').replace(/"?\)$/, '');
+        paperPattern = ctx.createPattern(await loadImage(src), 'repeat');
+      } catch (_) { paperPattern = false; }
+    }
+    return paperPattern;
+  }
+
+  // 줄바꿈: 띄어쓰기 단위로 끊고, 한 단어가 너무 길면 글자 단위로 끊음
+  function wrapText(ctx, text, maxW) {
+    const out = [];
+    String(text).split('\n').forEach((para) => {
+      const words = para.split(' ');
+      let line = '';
+      for (const w of words) {
+        const test = line ? line + ' ' + w : w;
+        if (ctx.measureText(test).width <= maxW) { line = test; continue; }
+        if (line) out.push(line);
+        if (ctx.measureText(w).width <= maxW) { line = w; continue; }
+        line = '';
+        for (const ch of w) {
+          if (ctx.measureText(line + ch).width > maxW) { out.push(line); line = ch; } else line += ch;
+        }
+      }
+      out.push(line);
+    });
+    return out;
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  async function renderCard(r) {
+    await ensureFonts();
+    const S = 2;                       // 2배 해상도
+    const CW = 360 * S, M = 28 * S;    // 카드 너비, 바깥 여백(남색 배경)
+    const PAD = 18 * S, TOP = 24 * S, BAND = 7 * S;
+    const innerW = CW - PAD * 2;
+    const hasImg = validImg(r.image_data);
+    const msgSize = (hasImg ? 17 : 21) * S, lh = Math.round(msgSize * 1.6);
+    const metaH = 26 * S;
+
+    const tmp = document.createElement('canvas').getContext('2d');
+    tmp.font = `500 ${msgSize}px SeoulHangang, 'Noto Sans KR', sans-serif`;
+    const lines = r.message ? wrapText(tmp, r.message.trim(), innerW) : [];
+    const imgH = hasImg ? Math.round(innerW * 9 / 16) : 0;
+    const msgTop = hasImg ? 14 * S : 2 * S;
+    const msgH = lines.length ? msgTop + lines.length * lh : 0;
+    const CH = TOP + imgH + msgH + 16 * S + metaH + 16 * S;
+
+    const c = document.createElement('canvas');
+    c.width = CW + M * 2; c.height = CH + M * 2;
+    const ctx = c.getContext('2d');
+
+    // 남색 배경
+    const bg = ctx.createLinearGradient(0, 0, c.width, c.height);
+    bg.addColorStop(0, '#16213a'); bg.addColorStop(1, '#0b1019');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
+
+    // 카드(한지) + 그림자
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 24 * S; ctx.shadowOffsetY = 10 * S;
+    roundRect(ctx, M, M, CW, CH, 5 * S);
+    ctx.fillStyle = '#f3ead6'; ctx.fill();
+    ctx.restore();
+    ctx.save();
+    roundRect(ctx, M, M, CW, CH, 5 * S); ctx.clip();
+    const paper = await getPaper(ctx);
+    if (paper) { ctx.fillStyle = paper; ctx.fillRect(M, M, CW, CH); }
+    ctx.fillStyle = ACCENT; ctx.fillRect(M, M, CW, BAND);          // 상단 포인트 띠
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(120,90,50,.3)'; ctx.lineWidth = S;
+    roundRect(ctx, M + .5, M + .5, CW - 1, CH - 1, 5 * S); ctx.stroke();
+
+    let y = M + TOP;
+    const x = M + PAD;
+
+    // 그림
+    if (hasImg) {
+      ctx.fillStyle = '#f3ead6'; ctx.fillRect(x, y, innerW, imgH);
+      try {
+        const img = await loadImage(r.image_data);
+        const sc = Math.min(innerW / img.width, imgH / img.height);
+        const w = img.width * sc, h = img.height * sc;
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(img, x + (innerW - w) / 2, y + (imgH - h) / 2, w, h);
+        ctx.restore();
+      } catch (_) {}
+      ctx.strokeStyle = 'rgba(80,60,40,.2)'; ctx.lineWidth = S; ctx.strokeRect(x + .5, y + .5, innerW - 1, imgH - 1);
+      y += imgH;
+    }
+
+    // 메시지
+    if (lines.length) {
+      y += msgTop;
+      ctx.fillStyle = '#2a2420';
+      ctx.font = `500 ${msgSize}px SeoulHangang, 'Noto Sans KR', sans-serif`;
+      ctx.textBaseline = 'middle';
+      lines.forEach((ln, i) => ctx.fillText(ln, x, y + i * lh + lh / 2));
+      y += lines.length * lh;
+    }
+
+    // 닉네임(푸른 인장) + 날짜
+    y += 16 * S;
+    const nick = (r.nickname && r.nickname.trim()) || '익명';
+    ctx.font = `700 ${14 * S}px SeoulHangang, 'Noto Sans KR', sans-serif`;
+    let nickText = nick;
+    const maxNickW = innerW * 0.62 - 18 * S;
+    while (ctx.measureText(nickText).width > maxNickW && nickText.length > 1) nickText = nickText.slice(0, -1);
+    if (nickText !== nick) nickText = nickText.slice(0, -1) + '…';
+    const nw = ctx.measureText(nickText).width + 18 * S;
+    roundRect(ctx, x, y, nw, metaH, 3 * S);
+    ctx.fillStyle = '#1f5f8b'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2 * S;
+    roundRect(ctx, x + S, y + S, nw - 2 * S, metaH - 2 * S, 2 * S); ctx.stroke();
+    ctx.fillStyle = '#eef4fa'; ctx.textBaseline = 'middle';
+    ctx.fillText(nickText, x + 9 * S, y + metaH / 2 + S);
+    ctx.font = `300 ${13 * S}px SeoulHangang, 'Noto Sans KR', sans-serif`;
+    ctx.fillStyle = 'rgba(80,62,44,.8)'; ctx.textAlign = 'right';
+    ctx.fillText(fmtDate(r.created_at), x + innerW, y + metaH / 2 + S);
+    ctx.textAlign = 'left';
+
+    return new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+
+  /* ---------- 불러오기 ---------- */
   async function loadAll() {
     rows = [];
     for (let from = 0; ; from += PAGE) {
@@ -132,13 +317,10 @@
     const onlyImg = $('onlyImg').checked;
     filtered = rows.filter((r) => {
       if (onlyImg && !validImg(r.image_data)) return false;
-      const day = fmt(r.created_at, false);
+      const day = fmtDate(r.created_at);
       if (from && day < from) return false;
       if (to && day > to) return false;
-      if (q) {
-        const hay = `${r.message || ''} ${r.nickname || ''}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+      if (q && !`${r.message || ''} ${r.nickname || ''}`.toLowerCase().includes(q)) return false;
       return true;
     });
     const imgCount = filtered.filter((r) => validImg(r.image_data)).length;
@@ -149,62 +331,65 @@
     statusEl.textContent = filtered.length ? '' : '해당하는 글이 없습니다.';
   }
 
-  /* ---------- 그리기 ---------- */
-  function card(r) {
+  /* ---------- 화면 카드 ---------- */
+  function cardEl(r) {
     const el = document.createElement('div');
-    el.className = 'item';
-    if (validImg(r.image_data)) {
+    el.className = 'card';
+    const has = validImg(r.image_data);
+    if (has) {
+      el.classList.add('has-img');
       const box = document.createElement('div');
-      box.className = 'img';
+      box.className = 'card-img';
       const img = new Image();
-      img.loading = 'lazy';
-      img.alt = '';
-      img.src = r.image_data;
+      img.loading = 'lazy'; img.alt = ''; img.src = r.image_data;
       box.appendChild(img);
       box.addEventListener('click', () => openLightbox(r.image_data));
       el.appendChild(box);
-    } else {
-      const no = document.createElement('div');
-      no.className = 'noimg';
-      no.textContent = '그림 없음';
-      el.appendChild(no);
     }
-    const body = document.createElement('div');
-    body.className = 'body';
-    const msg = document.createElement('div');
-    msg.className = 'msg' + (r.message ? '' : ' empty');
-    msg.textContent = r.message || '(메시지 없음)';
+    if (r.message && r.message.trim()) {
+      const p = document.createElement('p');
+      p.className = 'card-msg';
+      p.textContent = r.message.trim();
+      el.appendChild(p);
+    }
     const meta = document.createElement('div');
-    meta.className = 'meta';
+    meta.className = 'card-meta';
     const nick = document.createElement('span');
     nick.className = 'nick';
-    nick.textContent = r.nickname || '익명';
+    nick.textContent = (r.nickname && r.nickname.trim()) || '익명';
     const time = document.createElement('span');
-    time.textContent = fmt(r.created_at);
+    time.className = 'time';
+    time.textContent = fmtDate(r.created_at);
     meta.append(nick, time);
-    const foot = document.createElement('div');
-    foot.className = 'foot';
-    const id = document.createElement('span');
-    id.textContent = `#${r.id}`;
-    foot.appendChild(id);
-    if (validImg(r.image_data)) {
+    el.appendChild(meta);
+
+    const tools = document.createElement('div');
+    tools.className = 'card-tools';
+    const info = document.createElement('span');
+    info.textContent = `#${r.id} · ${fmtTime(r.created_at)}`;
+    const btns = document.createElement('span');
+    const cardBtn = document.createElement('button');
+    cardBtn.type = 'button';
+    cardBtn.textContent = '카드 저장';
+    cardBtn.addEventListener('click', async () => {
+      cardBtn.disabled = true;
+      try { saveBlob(await renderCard(r), cardName(r)); } finally { cardBtn.disabled = false; }
+    });
+    btns.appendChild(cardBtn);
+    if (has) {
       const a = document.createElement('a');
-      a.className = 'dl';
-      a.href = r.image_data;
-      a.download = fileName(r);
-      a.textContent = '이미지 저장';
-      foot.appendChild(a);
+      a.href = r.image_data; a.download = rawName(r); a.textContent = '그림만';
+      btns.appendChild(a);
     }
-    body.append(msg, meta, foot);
-    el.appendChild(body);
+    tools.append(info, btns);
+    el.appendChild(tools);
     return el;
   }
 
   function renderMore() {
-    const old = $('more');
-    if (old) old.remove();
+    const old = $('more'); if (old) old.remove();
     const frag = document.createDocumentFragment();
-    filtered.slice(shown, shown + SHOW_STEP).forEach((r) => frag.appendChild(card(r)));
+    filtered.slice(shown, shown + SHOW_STEP).forEach((r) => frag.appendChild(cardEl(r)));
     shown = Math.min(filtered.length, shown + SHOW_STEP);
     listEl.appendChild(frag);
     if (shown < filtered.length) {
@@ -216,63 +401,55 @@
     }
   }
 
-  /* ---------- 확대 보기 ---------- */
   const lb = $('lightbox');
   function openLightbox(src) { lb.querySelector('img').src = src; lb.classList.add('show'); }
   lb.addEventListener('click', () => lb.classList.remove('show'));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.classList.remove('show'); });
 
   /* ---------- 내려받기 ---------- */
-  function saveBlob(blob, name) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
-  const today = () => fmt(new Date().toISOString(), false);
-
-  // CSV: 현재 필터 결과 (이미지 자체는 제외하고 이미지 파일명만 기록)
   $('csvBtn').addEventListener('click', () => {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [['번호', '작성일시', '닉네임', '메시지', '그림 파일명'].map(esc).join(',')];
-    filtered.forEach((r) => {
-      lines.push([r.id, fmt(r.created_at), r.nickname || '익명', r.message || '', validImg(r.image_data) ? fileName(r) : ''].map(esc).join(','));
-    });
-    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }); // BOM: 엑셀 한글 깨짐 방지
-    saveBlob(blob, `방명록_${today()}.csv`);
+    const lines = [['번호', '작성일시', '닉네임', '메시지', '카드 이미지 파일명', '그림 원본 파일명'].map(esc).join(',')];
+    filtered.forEach((r) => lines.push([r.id, fmtTime(r.created_at), r.nickname || '익명', r.message || '', cardName(r), validImg(r.image_data) ? rawName(r) : ''].map(esc).join(',')));
+    saveBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `방명록_${today()}.csv`);
   });
 
-  // ZIP: 현재 필터 결과의 그림 전체
-  $('zipBtn').addEventListener('click', async () => {
-    const list = filtered.filter((r) => validImg(r.image_data));
-    if (!list.length) { alert('내려받을 그림이 없습니다.'); return; }
+  async function makeZip(btn, label, list, addFn, zipNameStr) {
+    if (!list.length) { alert('내려받을 항목이 없습니다.'); return; }
     if (!window.JSZip) { alert('ZIP 기능을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); return; }
-    const btn = $('zipBtn');
     btn.disabled = true;
     try {
       const zip = new JSZip();
-      list.forEach((r) => zip.file(fileName(r), r.image_data.split(',')[1], { base64: true }));
+      for (let i = 0; i < list.length; i++) {
+        await addFn(zip, list[i]);
+        btn.textContent = `준비 중… ${i + 1}/${list.length}`;
+      }
       const blob = await zip.generateAsync({ type: 'blob' }, (m) => { btn.textContent = `압축 중… ${Math.round(m.percent)}%`; });
-      saveBlob(blob, `방명록_그림_${today()}.zip`);
+      saveBlob(blob, zipNameStr);
     } catch (err) {
       console.error(err);
       alert('ZIP 파일을 만들지 못했습니다.');
     } finally {
       btn.disabled = false;
-      btn.textContent = '이미지 전체 ZIP';
+      btn.textContent = label;
     }
-  });
+  }
+  $('zipCardBtn').addEventListener('click', () =>
+    makeZip($('zipCardBtn'), '카드 이미지 ZIP', filtered,
+      async (zip, r) => zip.file(cardName(r), await renderCard(r)),
+      `방명록_카드_${today()}.zip`));
+  $('zipRawBtn').addEventListener('click', () =>
+    makeZip($('zipRawBtn'), '그림 원본 ZIP', filtered.filter((r) => validImg(r.image_data)),
+      async (zip, r) => zip.file(rawName(r), r.image_data.split(',')[1], { base64: true }),
+      `방명록_그림원본_${today()}.zip`));
 
   ['q', 'from', 'to', 'onlyImg'].forEach((id) => $(id).addEventListener('input', applyFilter));
 
-  loadAll()
-    .then(applyFilter)
-    .catch((err) => {
-      console.error(err);
-      statusEl.textContent = '데이터를 불러오지 못했습니다: ' + (err.message || err);
-      statusEl.className = 'err';
-    });
+  loadAll().then(applyFilter).catch((err) => {
+    console.error(err);
+    statusEl.textContent = '데이터를 불러오지 못했습니다: ' + (err.message || err);
+    statusEl.className = 'err';
+  });
 })();
 </script>
 </body>
